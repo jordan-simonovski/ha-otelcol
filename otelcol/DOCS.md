@@ -199,6 +199,7 @@ and recorded in the add-on changelog:
 
 - MQTT maps to either metrics or logs (one `signal` at a time), not traces.
 - Apply-on-restart, not hot reload.
-- The first install builds the collector from source on the device and can take
-  several minutes.
+- Installs pull a prebuilt multi-arch image from GHCR; the collector is compiled
+  in CI, not on the device.
+- The add-on runs under a custom AppArmor profile (`apparmor: true`).
 - Architectures: `amd64`, `aarch64`.

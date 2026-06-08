@@ -14,6 +14,15 @@ MQTT receiver, and no maintained third-party module exists. To get native MQTT
 ingestion into the collector pipeline, this add-on builds its own collector
 distribution with the [OpenTelemetry Collector Builder (OCB)](https://opentelemetry.io/docs/collector/extend/ocb/)
 and a small in-repo MQTT receiver component (see [`otelcol/components/mqttreceiver`](otelcol/components/mqttreceiver)).
+The build now happens in CI and publishes prebuilt multi-arch images to GHCR;
+devices no longer compile on install.
+
+## Security
+
+The add-on ships a custom [`otelcol/apparmor.txt`](otelcol/apparmor.txt) profile
+and enables it (`apparmor: true`). The Supervisor loads and enforces it, which
+confines the collector process and earns the add-on a Home Assistant security
+point.
 
 ## Installation
 
@@ -24,8 +33,9 @@ and a small in-repo MQTT receiver component (see [`otelcol/components/mqttreceiv
    https://github.com/jordan-simonovski/ha-otelcol
    ```
 
-3. Install the **OpenTelemetry Collector** add-on. The first build compiles the
-   collector from source on the device and may take several minutes.
+3. Install the **OpenTelemetry Collector** add-on. It pulls a prebuilt,
+   multi-arch image from GHCR (`ghcr.io/jordan-simonovski/otelcol`), so install
+   is a download rather than an on-device source build.
 
 ## Configuration
 
@@ -49,17 +59,26 @@ The add-on version lives in `otelcol/package.json` and is mirrored into
 ### CI (automated)
 
 - `.github/workflows/ci.yml` runs on every PR/push: it requires a changeset on
-  PRs (`changeset status`), runs the Go tests for the MQTT receiver, and builds
-  the add-on image the same way Home Assistant does (so a broken Dockerfile or
-  OCB manifest fails in CI, not on your device).
+  PRs (`changeset status`), runs the Go tests for the MQTT receiver, lints the
+  add-on, validates the AppArmor profile (`apparmor_parser -Q`), and builds the
+  add-on image the same way Home Assistant does (so a broken Dockerfile or OCB
+  manifest fails in CI, not on your device).
 - `.github/workflows/release.yml` runs on pushes to `main`: the
   [changesets action](https://github.com/changesets/action) opens/updates a
   **Version Packages** PR that runs `npm run changeset:version`. Merging that PR
   is the release - it lands the version bump, the regenerated `CHANGELOG.md`, and
   the synced `config.yaml`.
+- `.github/workflows/build.yml` runs on pushes to `main`: when the
+  `config.yaml` version is new (no matching `v<version>` tag yet), it builds
+  multi-arch images with the [Home Assistant builder
+  actions](https://github.com/home-assistant/builder), pushes them to GHCR as
+  `ghcr.io/jordan-simonovski/otelcol:<version>` (and `:latest`), then tags
+  `v<version>` and cuts a GitHub Release. Merging the Version Packages PR is
+  what bumps the version and triggers a publish.
 
 > The release workflow needs **Settings -> Actions -> General -> Allow GitHub
-> Actions to create and approve pull requests** enabled on the repo.
+> Actions to create and approve pull requests** enabled on the repo. The GHCR
+> package must be made **public** once so users' Supervisors can pull it.
 
 ### Local (manual fallback)
 

@@ -9,50 +9,74 @@ permissions:
   contents: read
 
 jobs:
-  # Fail PRs that change the add-on without recording a changeset, so the
-  # changelog and version stay in sync with the code.
   changeset:
+    name: Changeset present
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - run: npm ci
-      - name: Require a changeset
-        run: npx changeset status --since=origin/${{ github.base_ref }}
+      - run: git fetch origin main
+      - run: npx changeset status --since=origin/main
 
-  go-test:
+  test:
+    name: Go tests (mqttreceiver)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.26"
-      - name: Test MQTT receiver
-        working-directory: otelcol/components/mqttreceiver
-        run: |
-          go vet ./...
-          go test ./...
+          go-version-file: otelcol/components/mqttreceiver/go.mod
+      - working-directory: otelcol/components/mqttreceiver
+        run: go test ./...
 
-  # Build the add-on image exactly like Home Assistant Supervisor does. This
-  # compiles the custom collector with OCB and would catch Dockerfile/manifest
-  # breakage before it reaches a device.
-  build-image:
+  lint:
+    name: Add-on linter
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
-      - name: Build (amd64)
-        uses: docker/build-push-action@v6
+      - uses: actions/checkout@v6
+      - uses: frenck/action-addon-linter@v2
         with:
+          path: ./otelcol
+
+  apparmor:
+    name: AppArmor profile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install AppArmor utilities
+        run: sudo apt-get update && sudo apt-get install -y apparmor-utils
+      - name: Validate profile syntax
+        run: sudo apparmor_parser -Q otelcol/apparmor.txt
+
+  build:
+    name: Build image (amd64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Resolve base image
+        id: base
+        run: |
+          build_from=$(grep -E '^\s+amd64:' otelcol/build.yaml | sed -E 's/.*"(.*)".*/\1/')
+          [ -n "$build_from" ] || { echo "could not read amd64 build_from from build.yaml" >&2; exit 1; }
+          echo "build_from=$build_from" >> "$GITHUB_OUTPUT"
+      - name: Build (no push)
+        uses: home-assistant/builder/actions/build-image@2026.03.2
+        with:
+          arch: amd64
+          image: ghcr.io/${{ github.repository_owner }}/amd64-otelcol
+          image-tags: ci
+          version: ci
           context: otelcol
-          push: false
+          push: "false"
+          load: "false"
+          cosign: "false"
+          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
           build-args: |
-            BUILD_FROM=ghcr.io/hassio-addons/debian-base/amd64:9.1.0
+            BUILD_FROM=${{ steps.base.outputs.build_from }}
             BUILD_ARCH=amd64
-            OTELCOL_VERSION=0.153.0

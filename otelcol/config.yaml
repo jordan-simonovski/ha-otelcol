@@ -19,7 +19,8 @@ ports_description:
 map:
   - homeassistant_config:rw
   - share:rw
-apparmor: false
+image: "ghcr.io/jordan-simonovski/otelcol"
+apparmor: true
 options:
   mqtt:
     broker: ""
