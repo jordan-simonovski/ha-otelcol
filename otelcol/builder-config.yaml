@@ -1,0 +1,32 @@
+dist:
+  name: otelcol-ha
+  description: "OpenTelemetry Collector for Home Assistant (MQTT receiver + multi-format export)"
+  output_path: ./_build
+  otelcol_version: 0.153.0
+  module: github.com/jordan-simonovski/ha-otelcol/otelcol
+
+receivers:
+  - gomod: go.opentelemetry.io/collector/receiver/otlpreceiver v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver v0.153.0
+  - gomod: github.com/local/mqttreceiver v0.0.0
+
+processors:
+  - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.153.0
+  - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.153.0
+
+exporters:
+  - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.153.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlpexporter v0.153.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/prometheusexporter v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/fileexporter v0.153.0
+
+extensions:
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.153.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/pprofextension v0.153.0
+  - gomod: go.opentelemetry.io/collector/extension/zpagesextension v0.153.0
+
+replaces:
+  # Path is relative to the generated sources directory (output_path, ./_build),
+  # so it points one level up into ./components.
+  - github.com/local/mqttreceiver => ../components/mqttreceiver

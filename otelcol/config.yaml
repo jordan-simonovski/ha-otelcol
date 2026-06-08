@@ -1,0 +1,52 @@
+name: OpenTelemetry Collector
+version: 0.1.0
+slug: otelcol
+description: Custom OpenTelemetry Collector with an MQTT receiver and multi-format export
+url: https://github.com/jordan-simonovski/ha-otelcol/tree/main/otelcol
+startup: services
+init: false
+arch:
+  - aarch64
+  - amd64
+ports:
+  4317/tcp: 4317
+  4318/tcp: 4318
+  8889/tcp: null
+ports_description:
+  4317/tcp: OTLP/gRPC receiver
+  4318/tcp: OTLP/HTTP receiver
+  8889/tcp: Prometheus exporter (optional)
+map:
+  - homeassistant_config:rw
+  - share:rw
+apparmor: false
+options:
+  mqtt:
+    broker: ""
+    port: 1883
+    qos: 0
+    client_id: otelcol-ha
+    tls: false
+    signal: metrics
+    topics: []
+  exporters:
+    - type: debug
+  extra_config: ""
+schema:
+  mqtt:
+    broker: str?
+    port: int(1,65535)?
+    qos: int(0,2)?
+    username: str?
+    password: password?
+    client_id: str?
+    tls: bool?
+    signal: list(metrics|logs)?
+    topics:
+      - str
+  exporters:
+    - type: list(otlp|otlphttp|prometheus|file|debug)
+      endpoint: str?
+      headers:
+        - str?
+  extra_config: str?

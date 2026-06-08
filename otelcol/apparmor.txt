@@ -1,0 +1,48 @@
+#include <tunables/global>
+
+profile otelcol flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # Capabilities
+  file,
+  signal (send) set=(kill,term,int,hup,cont),
+
+  # S6-Overlay
+  /init ix,
+  /bin/** ix,
+  /usr/bin/** ix,
+  /run/{s6,s6-rc*,service}/** ix,
+  /package/** ix,
+  /command/** ix,
+  /etc/services.d/** rwix,
+  /etc/cont-init.d/** rwix,
+  /etc/cont-finish.d/** rwix,
+  /run/{,**} rwk,
+  /dev/tty rw,
+
+  # Bashio
+  /usr/lib/bashio/** ix,
+  /tmp/** rwk,
+
+  # Access to options.json and other files within your addon
+  /data/** rw,
+
+  # Start new profile for the collector
+  /usr/bin/otelcol cx -> otelcol,
+
+  profile otelcol flags=(attach_disconnected,mediate_deleted) {
+    #include <abstractions/base>
+
+    signal (receive) peer=*_otelcol,
+
+    /data/** rw,
+    /share/** rw,
+    /tmp/** rwk,
+    /etc/otelcol/** r,
+
+    /usr/bin/otelcol r,
+    /bin/bash rix,
+    /etc/passwd r,
+    /dev/tty rw,
+  }
+}

@@ -1,0 +1,30 @@
+---
+# Internal self-monitoring pipeline. Merged first; the generated config and the
+# optional raw override are layered on top of it.
+receivers:
+  prometheus/internal:
+    config:
+      scrape_configs:
+        - job_name: "otelcol"
+          scrape_interval: 30s
+          static_configs:
+            - targets: ["127.0.0.1:8888"]
+
+processors:
+  batch/internal: {}
+
+exporters:
+  debug/internal:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 127.0.0.1:13133
+
+service:
+  extensions: [health_check]
+  pipelines:
+    metrics/internal:
+      receivers: [prometheus/internal]
+      processors: [batch/internal]
+      exporters: [debug/internal]

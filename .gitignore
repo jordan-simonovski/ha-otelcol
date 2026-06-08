@@ -1,0 +1,5 @@
+# OCB-generated collector sources and compiled binary
+otelcol/_build/
+
+# Local test artifacts
+/tmp/otelcol-*.yaml

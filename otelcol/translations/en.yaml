@@ -1,0 +1,18 @@
+---
+configuration:
+  mqtt:
+    name: MQTT receiver
+    description: >-
+      Ingest MQTT messages into the collector. Leave the broker empty to disable
+      the MQTT receiver. Set 'signal' to 'metrics' (default) to decode numeric
+      payloads into gauges, or 'logs' to store raw messages as log records.
+  exporters:
+    name: Exporters
+    description: >-
+      One or more telemetry destinations. Supported types: otlp, otlphttp,
+      prometheus, file, debug. OTLP is the recommended default.
+  extra_config:
+    name: Raw config override
+    description: >-
+      Optional raw OpenTelemetry Collector YAML. It is passed as an additional
+      --config file and deep-merged last, so it overrides the generated config.
