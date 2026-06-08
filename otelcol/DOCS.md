@@ -189,6 +189,12 @@ overhead is negligible.
 | `4318/tcp` | OTLP HTTP receiver |
 | `8889/tcp` | Prometheus exporter (only if a `prometheus` exporter is configured) |
 
+## Changelog
+
+Release history is tracked with [changesets](https://github.com/changesets/changesets)
+and recorded in the add-on changelog:
+[otelcol/CHANGELOG.md](https://github.com/jordan-simonovski/ha-otelcol/blob/main/otelcol/CHANGELOG.md).
+
 ## Constraints
 
 - MQTT maps to either metrics or logs (one `signal` at a time), not traces.

@@ -1,0 +1,41 @@
+name: Release
+
+# When changesets land on main, this opens/updates a "Version Packages" PR that
+# runs `changeset version` (bumping otelcol/package.json, regenerating
+# otelcol/CHANGELOG.md, and syncing otelcol/config.yaml). Merging that PR commits
+# the release. There is no npm publish step - the artifact is the add-on itself,
+# which Home Assistant builds from config.yaml/Dockerfile.
+
+on:
+  push:
+    branches: [main]
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: Create or update the Version Packages PR
+        uses: changesets/action@v1
+        with:
+          version: npm run changeset:version
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

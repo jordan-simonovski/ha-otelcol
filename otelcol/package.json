@@ -1,0 +1,6 @@
+{
+  "name": "otelcol-addon",
+  "version": "0.1.1",
+  "private": true,
+  "description": "Home Assistant OpenTelemetry Collector add-on (version mirror for changesets; the add-on itself is built from config.yaml/Dockerfile)"
+}

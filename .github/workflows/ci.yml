@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  # Fail PRs that change the add-on without recording a changeset, so the
+  # changelog and version stay in sync with the code.
+  changeset:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Require a changeset
+        run: npx changeset status --since=origin/${{ github.base_ref }}
+
+  go-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Test MQTT receiver
+        working-directory: otelcol/components/mqttreceiver
+        run: |
+          go vet ./...
+          go test ./...
+
+  # Build the add-on image exactly like Home Assistant Supervisor does. This
+  # compiles the custom collector with OCB and would catch Dockerfile/manifest
+  # breakage before it reaches a device.
+  build-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: otelcol
+          push: false
+          build-args: |
+            BUILD_FROM=ghcr.io/hassio-addons/debian-base/amd64:9.1.0
+            BUILD_ARCH=amd64
+            OTELCOL_VERSION=0.153.0

@@ -38,6 +38,40 @@ applied when you **Save** and **Restart** the add-on. See
 `amd64` and `aarch64`. The Home Assistant base images this add-on builds on are
 not published for 32-bit targets at current versions.
 
+## Versioning and changelog
+
+Releases are managed with [changesets](https://github.com/changesets/changesets).
+The add-on version lives in `otelcol/package.json` and is mirrored into
+`otelcol/config.yaml` (what Home Assistant reads) by
+[`scripts/sync-addon-version.mjs`](scripts/sync-addon-version.mjs). History is in
+[`otelcol/CHANGELOG.md`](otelcol/CHANGELOG.md).
+
+### CI (automated)
+
+- `.github/workflows/ci.yml` runs on every PR/push: it requires a changeset on
+  PRs (`changeset status`), runs the Go tests for the MQTT receiver, and builds
+  the add-on image the same way Home Assistant does (so a broken Dockerfile or
+  OCB manifest fails in CI, not on your device).
+- `.github/workflows/release.yml` runs on pushes to `main`: the
+  [changesets action](https://github.com/changesets/action) opens/updates a
+  **Version Packages** PR that runs `npm run changeset:version`. Merging that PR
+  is the release - it lands the version bump, the regenerated `CHANGELOG.md`, and
+  the synced `config.yaml`.
+
+> The release workflow needs **Settings -> Actions -> General -> Allow GitHub
+> Actions to create and approve pull requests** enabled on the repo.
+
+### Local (manual fallback)
+
+```bash
+npm install            # first time only
+npm run changeset      # record a change (pick patch/minor/major)
+npm run changeset:version   # bump version, update CHANGELOG.md, sync config.yaml
+```
+
+Then commit and push; bumping `config.yaml` is what makes Home Assistant offer
+the update.
+
 ## License
 
 Apache-2.0

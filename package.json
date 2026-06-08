@@ -1,0 +1,17 @@
+{
+  "name": "ha-otelcol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Versioning tooling for the Home Assistant OpenTelemetry Collector add-on",
+  "workspaces": [
+    "otelcol"
+  ],
+  "scripts": {
+    "changeset": "changeset",
+    "changeset:status": "changeset status --verbose",
+    "changeset:version": "changeset version && node scripts/sync-addon-version.mjs"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.27.10"
+  }
+}

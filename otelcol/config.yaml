@@ -1,5 +1,5 @@
 name: OpenTelemetry Collector
-version: 0.1.0
+version: 0.1.1
 slug: otelcol
 description: Custom OpenTelemetry Collector with an MQTT receiver and multi-format export
 url: https://github.com/jordan-simonovski/ha-otelcol/tree/main/otelcol
