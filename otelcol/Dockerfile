@@ -1,8 +1,12 @@
 # ==============================================================================
-# Stage 1: build a custom OpenTelemetry Collector with OCB (incl. MQTT receiver)
+# Global build args. ARGs used in a FROM must be declared before the first FROM.
 # ==============================================================================
+ARG BUILD_FROM
 ARG OTELCOL_VERSION=0.153.0
 
+# ==============================================================================
+# Stage 1: build a custom OpenTelemetry Collector with OCB (incl. MQTT receiver)
+# ==============================================================================
 FROM golang:1.26-bookworm AS build
 
 ARG OTELCOL_VERSION
@@ -34,7 +38,6 @@ RUN set -eux; \
 # ==============================================================================
 # Stage 2: runtime image on the Home Assistant Debian base
 # ==============================================================================
-ARG BUILD_FROM=ghcr.io/hassio-addons/debian-base/amd64:9.1.0
 # hadolint ignore=DL3006
 FROM ${BUILD_FROM}
 
