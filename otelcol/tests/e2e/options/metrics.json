@@ -1,0 +1,20 @@
+{
+  "log_level": "debug",
+  "mqtt": {
+    "broker": "mosquitto",
+    "port": 1883,
+    "qos": 0,
+    "client_id": "otelcol-e2e",
+    "tls": false,
+    "signal": "metrics",
+    "topics": ["e2e/sensor"]
+  },
+  "processors": {
+    "batch": {
+      "timeout": "1s"
+    }
+  },
+  "exporters": [
+    { "type": "file", "endpoint": "/share/telemetry.json" }
+  ]
+}

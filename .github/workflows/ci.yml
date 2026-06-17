@@ -65,31 +65,55 @@ jobs:
       - name: Validate profile syntax
         run: sudo apparmor_parser -Q otelcol/apparmor.txt
 
-  # e2e:
-  #   name: E2E (mqtt + otlp)
-  #   if: github.event_name == 'pull_request'
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v6
-  #     - name: Resolve base image
-  #       id: base
-  #       run: |
-  #         build_from=$(grep -E '^\s+amd64:' otelcol/build.yaml | sed -E 's/.*"(.*)".*/\1/')
-  #         [ -n "$build_from" ] || { echo "could not read amd64 build_from from build.yaml" >&2; exit 1; }
-  #         echo "build_from=$build_from" >> "$GITHUB_OUTPUT"
-  #     - name: Build add-on image
-  #       run: |
-  #         docker build \
-  #           --build-arg BUILD_FROM=${{ steps.base.outputs.build_from }} \
-  #           --build-arg BUILD_ARCH=amd64 \
-  #           -t otelcol:e2e otelcol
-  #     - name: Install mosquitto-clients
-  #       run: sudo apt-get update && sudo apt-get install -y mosquitto-clients
-  #     - name: Run e2e suite
-  #       run: otelcol/tests/e2e/run.sh
+  e2e:
+    name: E2E (mqtt + otlp)
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: docker/setup-buildx-action@v3
+      - name: Resolve base image
+        id: base
+        run: |
+          build_from=$(grep -E '^\s+amd64:' otelcol/build.yaml | sed -E 's/.*"(.*)".*/\1/')
+          [ -n "$build_from" ] || { echo "could not read amd64 build_from from build.yaml" >&2; exit 1; }
+          echo "build_from=$build_from" >> "$GITHUB_OUTPUT"
+      - name: Restore Go build cache
+        id: go-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            go-mod-cache
+            go-build-cache
+          key: docker-go-${{ hashFiles('otelcol/builder-config.yaml', 'otelcol/components/**/go.sum') }}
+          restore-keys: |
+            docker-go-
+      - name: Inject Go cache into buildx
+        uses: reproducible-containers/buildkit-cache-dance@v3
+        with:
+          cache-map: |
+            {
+              "go-mod-cache": "/go/pkg/mod",
+              "go-build-cache": "/root/.cache/go-build"
+            }
+          skip-extraction: ${{ steps.go-cache.outputs.cache-hit }}
+      - name: Build add-on image
+        uses: docker/build-push-action@v6
+        with:
+          context: otelcol
+          load: true
+          tags: otelcol:e2e
+          build-args: |
+            BUILD_FROM=${{ steps.base.outputs.build_from }}
+            BUILD_ARCH=amd64
+      - name: Install mosquitto-clients
+        run: sudo apt-get update && sudo apt-get install -y mosquitto-clients
+      - name: Run e2e suite
+        run: otelcol/tests/e2e/run.sh
 
   build:
     name: Build image (amd64)
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
