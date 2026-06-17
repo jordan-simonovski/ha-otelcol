@@ -1,5 +1,11 @@
 # otelcol-addon
 
+## 0.3.2
+
+### Patch Changes
+
+- 0cfff12: Removing apparmor which is likely causing issues
+
 ## 0.3.1
 
 ### Patch Changes
