@@ -1,0 +1,6 @@
+{
+  "exporters": [
+    { "type": "debug" }
+  ],
+  "extra_config": "service:\n  pipelines:\n    metrics:\n      receivers: [does_not_exist]\n"
+}

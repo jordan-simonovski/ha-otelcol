@@ -1,0 +1,12 @@
+{
+  "mqtt": {
+    "broker": "core-mosquitto",
+    "signal": "metrics",
+    "topics": ["sensors/#"]
+  },
+  "exporters": [
+    { "type": "otlp", "endpoint": "otelcol-gateway:4317" },
+    { "type": "prometheus", "endpoint": "0.0.0.0:8889" },
+    { "type": "file", "endpoint": "/share/telemetry.json" }
+  ]
+}

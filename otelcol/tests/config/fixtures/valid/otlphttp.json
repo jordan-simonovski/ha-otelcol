@@ -1,0 +1,5 @@
+{
+  "exporters": [
+    { "type": "otlphttp", "endpoint": "https://otlp.example.com:4318" }
+  ]
+}

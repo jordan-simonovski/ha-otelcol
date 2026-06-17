@@ -1,0 +1,13 @@
+{
+  "exporters": [
+    {
+      "type": "clickhouse",
+      "endpoint": "tcp://clickhouse:9000",
+      "database": "otel",
+      "username": "default",
+      "password": "secret",
+      "ttl": "72h",
+      "timeout": "10s"
+    }
+  ]
+}

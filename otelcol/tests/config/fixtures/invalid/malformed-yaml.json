@@ -1,0 +1,6 @@
+{
+  "exporters": [
+    { "type": "debug" }
+  ],
+  "extra_config": "exporters:\n  debug:\n    verbosity: : not valid yaml\n"
+}

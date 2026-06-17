@@ -1,0 +1,6 @@
+{
+  "exporters": [
+    { "type": "debug" }
+  ],
+  "extra_config": "processors:\n  memory_limiter:\n    limit_percentage: 70\n    spike_limit_percentage: 20\n"
+}

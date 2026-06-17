@@ -1,0 +1,12 @@
+{
+  "processors": {
+    "batch": {
+      "timeout": "5s",
+      "send_batch_size": 8192,
+      "send_batch_max_size": 16384
+    }
+  },
+  "exporters": [
+    { "type": "debug" }
+  ]
+}
