@@ -1,5 +1,5 @@
 name: OpenTelemetry Collector
-version: 0.1.1
+version: 0.2.0
 slug: otelcol
 description: Custom OpenTelemetry Collector with an MQTT receiver and multi-format export
 url: https://github.com/jordan-simonovski/ha-otelcol/tree/main/otelcol
@@ -22,6 +22,7 @@ map:
 image: "ghcr.io/jordan-simonovski/otelcol"
 apparmor: true
 options:
+  log_level: info
   mqtt:
     broker: ""
     port: 1883
@@ -34,6 +35,12 @@ options:
     - type: debug
   extra_config: ""
 schema:
+  processors:
+    batch:
+      timeout: str?
+      send_batch_size: int?
+      send_batch_max_size: int?
+  log_level: list(trace|debug|info|notice|warning|error|fatal)?
   mqtt:
     broker: str?
     port: int(1,65535)?
@@ -46,8 +53,13 @@ schema:
     topics:
       - str
   exporters:
-    - type: list(otlp|otlphttp|prometheus|file|debug)
+    - type: list(otlp|otlphttp|prometheus|file|clickhouse|debug)
       endpoint: str?
       headers:
         - str?
+      database: str?
+      username: str?
+      password: password?
+      ttl: str?
+      timeout: str?
   extra_config: str?

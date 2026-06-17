@@ -14,6 +14,11 @@ readonly OVERRIDE=/tmp/otelcol-override.yaml
 
 opt() { jq -r "${1} // empty" "${OPTIONS}"; }
 
+# Honour an optional log_level so the rendered-config dump (and bashio output)
+# can be silenced at the default level and surfaced on demand.
+log_level="$(opt '.log_level')"
+[ -n "${log_level}" ] && bashio::log.level "${log_level}"
+
 join_csv() {
     local out=""
     local item
@@ -76,14 +81,28 @@ else
 fi
 
 # --- Processors ---------------------------------------------------------------
+# memory_limiter is a fixed safety guard and is intentionally not user-tunable.
 {
     echo "processors:"
     echo "  memory_limiter:"
     echo "    check_interval: 5s"
     echo "    limit_percentage: 80"
     echo "    spike_limit_percentage: 25"
-    echo "  batch: {}"
 } >> "${GENERATED}"
+
+batch_timeout="$(opt '.processors.batch.timeout')"
+batch_size="$(opt '.processors.batch.send_batch_size' | grep -E '^[0-9]+$' || true)"
+batch_max="$(opt '.processors.batch.send_batch_max_size' | grep -E '^[0-9]+$' || true)"
+if [ -n "${batch_timeout}${batch_size}${batch_max}" ]; then
+    {
+        echo "  batch:"
+        [ -n "${batch_timeout}" ] && echo "    timeout: ${batch_timeout}"
+        [ -n "${batch_size}" ]    && echo "    send_batch_size: ${batch_size}"
+        [ -n "${batch_max}" ]     && echo "    send_batch_max_size: ${batch_max}"
+    } >> "${GENERATED}"
+else
+    echo "  batch: {}" >> "${GENERATED}"
+fi
 
 # --- Exporters ----------------------------------------------------------------
 echo "exporters:" >> "${GENERATED}"
@@ -144,6 +163,28 @@ else
                 {
                     echo "  ${name}:"
                     echo "    path: \"${endpoint}\""
+                } >> "${GENERATED}"
+                signal_exporters+=("${name}")
+                metric_exporters+=("${name}")
+                ;;
+            clickhouse)
+                if [ -z "${endpoint}" ]; then
+                    bashio::log.warning "Exporter ${name} has no endpoint; skipping."
+                    continue
+                fi
+                ch_database="$(jq -r ".exporters[${i}].database // \"\"" "${OPTIONS}")"
+                ch_username="$(jq -r ".exporters[${i}].username // \"\"" "${OPTIONS}")"
+                ch_password="$(jq -r ".exporters[${i}].password // \"\"" "${OPTIONS}")"
+                ch_ttl="$(jq -r ".exporters[${i}].ttl // \"\"" "${OPTIONS}")"
+                ch_timeout="$(jq -r ".exporters[${i}].timeout // \"\"" "${OPTIONS}")"
+                {
+                    echo "  ${name}:"
+                    echo "    endpoint: \"${endpoint}\""
+                    [ -n "${ch_database}" ] && echo "    database: \"${ch_database}\""
+                    [ -n "${ch_username}" ] && echo "    username: \"${ch_username}\""
+                    [ -n "${ch_password}" ] && echo "    password: \"${ch_password}\""
+                    [ -n "${ch_ttl}" ]      && echo "    ttl: ${ch_ttl}"
+                    [ -n "${ch_timeout}" ]  && echo "    timeout: ${ch_timeout}"
                 } >> "${GENERATED}"
                 signal_exporters+=("${name}")
                 metric_exporters+=("${name}")
@@ -245,8 +286,12 @@ if [ -n "${extra_config}" ]; then
     bashio::log.info "Applying raw config override from add-on options."
 fi
 
-bashio::log.info "Generated collector configuration:"
-cat "${GENERATED}"
+# The full rendered config is verbose; emit it only at debug level so a restart
+# loop does not spam the log with the same config on every boot.
+bashio::log.debug "Generated collector configuration:"
+while IFS= read -r line; do
+    bashio::log.debug "${line}"
+done < "${GENERATED}"
 
 bashio::log.info "Starting the OpenTelemetry Collector..."
 exec /usr/bin/otelcol "${config_args[@]}"

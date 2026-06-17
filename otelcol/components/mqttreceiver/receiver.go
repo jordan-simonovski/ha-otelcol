@@ -64,7 +64,12 @@ func (r *mqttReceiver) Start(_ context.Context, _ component.Host) error {
 	opts.SetAutoReconnect(true)
 	opts.SetConnectRetry(true)
 	opts.SetCleanSession(true)
-	opts.SetOnConnectHandler(r.subscribe)
+	opts.SetOnConnectHandler(func(c mqtt.Client) {
+		r.logger.Info("mqtt: connected",
+			zap.String("broker", r.cfg.Broker), zap.Int("port", r.cfg.Port),
+			zap.String("client_id", r.effectiveClientID()))
+		r.subscribe(c)
+	})
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
 		r.logger.Warn("mqtt connection lost", zap.Error(err))
 	})
