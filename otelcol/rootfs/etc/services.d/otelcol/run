@@ -293,5 +293,13 @@ while IFS= read -r line; do
     bashio::log.debug "${line}"
 done < "${GENERATED}"
 
+# Test hook: render the layered config, validate it, and exit without starting
+# the collector. Lets CI assert every option permutation produces a config the
+# collector accepts, with no ports bound, no broker, and no telemetry round-trip.
+if [ "${RENDER_ONLY:-}" = "true" ]; then
+    bashio::log.info "RENDER_ONLY set; validating rendered configuration."
+    exec /usr/bin/otelcol validate "${config_args[@]}"
+fi
+
 bashio::log.info "Starting the OpenTelemetry Collector..."
 exec /usr/bin/otelcol "${config_args[@]}"

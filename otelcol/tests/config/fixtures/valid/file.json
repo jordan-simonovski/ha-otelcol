@@ -1,0 +1,5 @@
+{
+  "exporters": [
+    { "type": "file", "endpoint": "/share/telemetry.json" }
+  ]
+}

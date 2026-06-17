@@ -1,0 +1,9 @@
+{
+  "exporters": [
+    {
+      "type": "otlp",
+      "endpoint": "otelcol-gateway:4317",
+      "headers": ["x-api-key=secret", "x-tenant=home"]
+    }
+  ]
+}

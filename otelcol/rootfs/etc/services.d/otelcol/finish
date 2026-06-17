@@ -2,8 +2,21 @@
 # ==============================================================================
 # Take down the S6 supervision tree when the collector exits abnormally.
 # ==============================================================================
-if [[ "${1}" -ne 0 ]] && [[ "${1}" -ne 256 ]]; then
-    bashio::log.warning "OpenTelemetry Collector crashed, halting add-on"
+exit_code="${1}"
+signal="${2:-0}"
+# 256 == terminated by a signal. SIGTERM(15)/SIGINT(2) is how HA stops the
+# add-on cleanly; anything else (SIGKILL from the OOM killer, SIGSEGV) is a real
+# crash we want to surface and halt on instead of hot-looping.
+if [[ "${exit_code}" -eq 256 ]]; then
+    case "${signal}" in
+        15|2) : ;;
+        *)
+            bashio::log.error "OpenTelemetry Collector killed by signal ${signal}; halting add-on"
+            /run/s6/basedir/bin/halt
+            ;;
+    esac
+elif [[ "${exit_code}" -ne 0 ]]; then
+    bashio::log.warning "OpenTelemetry Collector exited ${exit_code}, halting add-on"
     /run/s6/basedir/bin/halt
 fi
 

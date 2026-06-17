@@ -107,6 +107,8 @@ jobs:
           build-args: |
             BUILD_FROM=${{ steps.base.outputs.build_from }}
             BUILD_ARCH=amd64
+      - name: Validate rendered configs
+        run: otelcol/tests/config/run.sh
       - name: Install mosquitto-clients
         run: sudo apt-get update && sudo apt-get install -y mosquitto-clients
       - name: Run e2e suite
