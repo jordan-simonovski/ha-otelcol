@@ -24,6 +24,17 @@ jobs:
       - run: git fetch origin main
       - run: npx changeset status --since=origin/main
 
+  version-sync:
+    name: config.yaml matches package.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Assert add-on version matches package.json
+        run: |
+          pkg=$(node -p "require('./otelcol/package.json').version")
+          cfg=$(sed -n 's/^version:[[:space:]]*//p' otelcol/config.yaml | tr -d '"')
+          [ "$pkg" = "$cfg" ] || { echo "version drift: package.json=$pkg config.yaml=$cfg" >&2; exit 1; }
+
   test:
     name: Go tests (mqttreceiver)
     runs-on: ubuntu-latest
