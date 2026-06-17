@@ -1,5 +1,13 @@
 # otelcol-addon
 
+## 0.3.0
+
+### Minor Changes
+
+- 4473b69: Ship the otelcol processors config fix that was merged but never published. The
+  `v0.2.0` image was tagged from an out-of-band version edit before the fix landed,
+  so the build pipeline skipped it. Cutting a fresh, untagged version releases it.
+
 ## 0.2.0
 
 ### Minor Changes
