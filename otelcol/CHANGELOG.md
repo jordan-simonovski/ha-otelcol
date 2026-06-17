@@ -4,6 +4,19 @@
 
 ### Minor Changes
 
+- e4592ce: Enable the bundled AppArmor profile (`apparmor: true`) to confine the collector,
+  and ship prebuilt multi-arch images from GHCR (`image:`) so installs download
+  instead of compiling on the device. Adds CI (changeset/test/lint/apparmor/build)
+  and a version-gated multi-arch publish workflow.
+
+### Patch Changes
+
+- 7b86c35: Fixing issues with otel collector config for processors.
+
+## 0.2.0
+
+### Minor Changes
+
 - Add a `clickhouse` exporter type. Compiled in via the contrib
   `clickhouseexporter` and configurable through structured options (`endpoint`,
   `database`, `username`, `password`, `ttl`, `timeout`). It is wired into the
