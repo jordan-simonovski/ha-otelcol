@@ -1,0 +1,23 @@
+{
+  "resourceMetrics": [
+    {
+      "scopeMetrics": [
+        {
+          "metrics": [
+            {
+              "name": "e2e.otlp.metric",
+              "gauge": {
+                "dataPoints": [
+                  {
+                    "timeUnixNano": "1718600000000000000",
+                    "asDouble": 7
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

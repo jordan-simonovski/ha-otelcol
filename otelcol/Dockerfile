@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1
 # ==============================================================================
 # Global build args. ARGs used in a FROM must be declared before the first FROM.
 # ==============================================================================
@@ -16,14 +17,18 @@ ENV CGO_ENABLED=0 \
     GOOS=linux
 
 # Install the OpenTelemetry Collector Builder pinned to the target version.
-RUN go install "go.opentelemetry.io/collector/cmd/builder@v${OTELCOL_VERSION}"
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go install "go.opentelemetry.io/collector/cmd/builder@v${OTELCOL_VERSION}"
 
 WORKDIR /src
 COPY builder-config.yaml ./builder-config.yaml
 COPY components ./components
 
 # Map the Home Assistant architecture to the Go architecture and build.
-RUN set -eux; \
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
     case "${BUILD_ARCH}" in \
       amd64)   export GOARCH=amd64 ;; \
       aarch64) export GOARCH=arm64 ;; \

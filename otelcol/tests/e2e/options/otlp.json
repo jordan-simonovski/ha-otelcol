@@ -1,0 +1,11 @@
+{
+  "log_level": "debug",
+  "processors": {
+    "batch": {
+      "timeout": "1s"
+    }
+  },
+  "exporters": [
+    { "type": "file", "endpoint": "/share/telemetry.json" }
+  ]
+}

@@ -11,8 +11,17 @@ Verify, in GitHub Actions, that the shipped add-on works end-to-end:
 2. The always-on OTLP receiver ingests a pushed signal and the collector exports it.
 
 These are black-box tests against the **actual add-on Docker image**, so they also
-cover the bash config-rendering in `rootfs/etc/services.d/otelcol/run` and the s6
-startup path, not just the Go receiver.
+cover the bash config-rendering in `rootfs/etc/services.d/otelcol/run`, not just the
+Go receiver.
+
+**Implementation note (discovered while building):** the HA `debian-base` s6 init
+(`base-addon-banner`/`timezone`/`log-level`) calls the Supervisor API and fatally
+stops the container when no Supervisor is present, so the image cannot boot via its
+normal entrypoint standalone. The suite therefore overrides the container entrypoint
+to `bashio /etc/services.d/otelcol/run`, running the add-on's own run script directly.
+The run script reads `/data/options.json` with `jq` and only uses bashio for logging,
+so this still exercises the real config rendering, the real image binary, the receiver,
+and the export — only the Supervisor-dependent HA platform glue is skipped.
 
 ## Scope
 
@@ -48,7 +57,8 @@ All files live under `otelcol/tests/e2e/`.
 
 - `docker-compose.yml` — two services, `mosquitto` and `otelcol`, on one network.
   - `mosquitto`: `eclipse-mosquitto`, started with an anonymous-allowed config.
-  - `otelcol`: image `otelcol:e2e` (built by the CI job before compose runs).
+  - `otelcol`: image `otelcol:e2e` (built by the CI job before compose runs),
+    entrypoint overridden to `bashio /etc/services.d/otelcol/run` (see note above).
     - `/data/options.json` ← `./options.json` (read-only, rewritten per case)
     - `/share` ← `./out` (read-write, host-owned, emptied per case)
 - `mosquitto.conf` — `listener 1883` + `allow_anonymous true`.

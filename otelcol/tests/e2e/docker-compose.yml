@@ -1,0 +1,27 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "1883:1883"
+    networks: [e2e]
+
+  otelcol:
+    image: otelcol:e2e
+    depends_on: [mosquitto]
+    # The HA debian-base s6 init (banner/timezone/log-level) calls the Supervisor
+    # API and fatally stops the container when it is absent, so it cannot boot
+    # standalone. Invoke the add-on's own run script directly instead: it reads
+    # /data/options.json with jq and only uses bashio for logging, so it renders
+    # the real config and starts the real collector without the Supervisor.
+    entrypoint: ["bashio", "/etc/services.d/otelcol/run"]
+    volumes:
+      - ./options.json:/data/options.json:ro
+      - ./out:/share
+    ports:
+      - "4318:4318"
+    networks: [e2e]
+
+networks:
+  e2e: {}
