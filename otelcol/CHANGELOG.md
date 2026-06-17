@@ -1,5 +1,11 @@
 # otelcol-addon
 
+## 0.3.1
+
+### Patch Changes
+
+- 62ef5ff: Implementing better debug logging
+
 ## 0.3.0
 
 ### Minor Changes
