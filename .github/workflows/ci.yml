@@ -2,8 +2,6 @@ name: CI
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
@@ -11,7 +9,7 @@ permissions:
 jobs:
   changeset:
     name: Changeset present
-    if: github.event_name == 'pull_request'
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -37,6 +35,7 @@ jobs:
 
   test:
     name: Go tests (mqttreceiver)
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -48,6 +47,7 @@ jobs:
 
   lint:
     name: Add-on linter
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -57,6 +57,7 @@ jobs:
 
   apparmor:
     name: AppArmor profile
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -67,7 +68,7 @@ jobs:
 
   e2e:
     name: E2E (mqtt + otlp)
-    if: github.event_name == 'pull_request'
+    if: github.head_ref != 'changeset-release/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -110,31 +111,3 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y mosquitto-clients
       - name: Run e2e suite
         run: otelcol/tests/e2e/run.sh
-
-  build:
-    name: Build image (amd64)
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Resolve base image
-        id: base
-        run: |
-          build_from=$(grep -E '^\s+amd64:' otelcol/build.yaml | sed -E 's/.*"(.*)".*/\1/')
-          [ -n "$build_from" ] || { echo "could not read amd64 build_from from build.yaml" >&2; exit 1; }
-          echo "build_from=$build_from" >> "$GITHUB_OUTPUT"
-      - name: Build (no push)
-        uses: home-assistant/builder/actions/build-image@2026.03.2
-        with:
-          arch: amd64
-          image: ghcr.io/${{ github.repository_owner }}/amd64-otelcol
-          image-tags: ci
-          version: ci
-          context: otelcol
-          push: "false"
-          load: "false"
-          cosign: "false"
-          container-registry-password: ${{ secrets.GITHUB_TOKEN }}
-          build-args: |
-            BUILD_FROM=${{ steps.base.outputs.build_from }}
-            BUILD_ARCH=amd64
