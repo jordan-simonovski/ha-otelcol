@@ -20,9 +20,10 @@ map:
   - homeassistant_config:rw
   - share:rw
 image: "ghcr.io/jordan-simonovski/otelcol"
-apparmor: true
 options:
   log_level: info
+  processors:
+    batch: {}
   mqtt:
     broker: ""
     port: 1883
