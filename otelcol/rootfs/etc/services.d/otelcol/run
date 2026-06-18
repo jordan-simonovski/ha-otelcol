@@ -1,9 +1,9 @@
 #!/usr/bin/with-contenv bashio
 # ==============================================================================
 # Render the OpenTelemetry Collector config from add-on options and start it.
-# The collector is launched with three layered --config files:
+# The config is rendered by the shipped `otelcol-config` binary, then layered:
 #   1. /etc/otelcol/selfmonitoring.yaml  (static internal pipeline)
-#   2. /tmp/otelcol-generated.yaml       (rendered from structured options)
+#   2. /tmp/otelcol-generated.yaml       (rendered by otelcol-config)
 #   3. /tmp/otelcol-override.yaml        (optional raw YAML, wins last)
 # ==============================================================================
 set -euo pipefail
@@ -11,6 +11,7 @@ set -euo pipefail
 readonly OPTIONS=/data/options.json
 readonly GENERATED=/tmp/otelcol-generated.yaml
 readonly OVERRIDE=/tmp/otelcol-override.yaml
+readonly GEN_STDERR=/tmp/otelcol-config.stderr
 
 opt() { jq -r "${1} // empty" "${OPTIONS}"; }
 
@@ -19,261 +20,22 @@ opt() { jq -r "${1} // empty" "${OPTIONS}"; }
 log_level="$(opt '.log_level')"
 [ -n "${log_level}" ] && bashio::log.level "${log_level}"
 
-join_csv() {
-    local out=""
-    local item
-    for item in "$@"; do
-        out="${out:+${out}, }${item}"
-    done
-    printf '%s' "${out}"
-}
-
 bashio::log.info "Rendering OpenTelemetry Collector configuration..."
 
-# --- Receivers ----------------------------------------------------------------
-{
-    echo "receivers:"
-    echo "  otlp:"
-    echo "    protocols:"
-    echo "      grpc:"
-    echo "        endpoint: 0.0.0.0:4317"
-    echo "      http:"
-    echo "        endpoint: 0.0.0.0:4318"
-} > "${GENERATED}"
-
-mqtt_enabled=false
-mqtt_signal="metrics"
-mqtt_broker="$(opt '.mqtt.broker')"
-if [ -n "${mqtt_broker}" ]; then
-    mqtt_enabled=true
-    mqtt_signal="$(opt '.mqtt.signal')"
-    [ "${mqtt_signal}" = "logs" ] || mqtt_signal="metrics"
-    mqtt_port="$(opt '.mqtt.port' | grep -E '^[0-9]+$' || echo 1883)"
-    mqtt_qos="$(opt '.mqtt.qos' | grep -E '^[0-2]$' || echo 0)"
-    mqtt_client_id="$(opt '.mqtt.client_id')"
-    [ -z "${mqtt_client_id}" ] && mqtt_client_id="otelcol-ha"
-    {
-        echo "  mqtt:"
-        echo "    broker: \"${mqtt_broker}\""
-        echo "    port: ${mqtt_port}"
-        echo "    qos: ${mqtt_qos}"
-        echo "    client_id: \"${mqtt_client_id}\""
-        echo "    tls: $(jq -r '.mqtt.tls // false' "${OPTIONS}")"
-    } >> "${GENERATED}"
-
-    mqtt_user="$(opt '.mqtt.username')"
-    if [ -n "${mqtt_user}" ]; then
-        echo "    username: \"${mqtt_user}\"" >> "${GENERATED}"
-    fi
-    mqtt_pass="$(opt '.mqtt.password')"
-    if [ -n "${mqtt_pass}" ]; then
-        echo "    password: \"${mqtt_pass}\"" >> "${GENERATED}"
-    fi
-
-    echo "    topics:" >> "${GENERATED}"
-    while IFS= read -r topic; do
-        [ -n "${topic}" ] && echo "      - \"${topic}\"" >> "${GENERATED}"
-    done < <(jq -r '.mqtt.topics[]?' "${OPTIONS}")
-
-    bashio::log.info "MQTT receiver enabled for broker ${mqtt_broker}"
-else
-    bashio::log.info "MQTT receiver disabled (no broker configured)"
+# Generate the middle config layer. A non-zero exit is fatal: the collector
+# cannot start without a config. Generator diagnostics go to stderr; surface
+# them in the add-on log.
+if ! /usr/bin/otelcol-config "${OPTIONS}" > "${GENERATED}" 2> "${GEN_STDERR}"; then
+    bashio::log.error "Configuration generation failed:"
+    while IFS= read -r line; do
+        bashio::log.error "${line}"
+    done < "${GEN_STDERR}"
+    exit 1
 fi
+while IFS= read -r line; do
+    [ -n "${line}" ] && bashio::log.info "${line}"
+done < "${GEN_STDERR}"
 
-# --- Processors ---------------------------------------------------------------
-# memory_limiter is a fixed safety guard and is intentionally not user-tunable.
-{
-    echo "processors:"
-    echo "  memory_limiter:"
-    echo "    check_interval: 5s"
-    echo "    limit_percentage: 80"
-    echo "    spike_limit_percentage: 25"
-} >> "${GENERATED}"
-
-batch_timeout="$(opt '.processors.batch.timeout')"
-batch_size="$(opt '.processors.batch.send_batch_size' | grep -E '^[0-9]+$' || true)"
-batch_max="$(opt '.processors.batch.send_batch_max_size' | grep -E '^[0-9]+$' || true)"
-if [ -n "${batch_timeout}${batch_size}${batch_max}" ]; then
-    {
-        echo "  batch:"
-        [ -n "${batch_timeout}" ] && echo "    timeout: ${batch_timeout}"
-        [ -n "${batch_size}" ]    && echo "    send_batch_size: ${batch_size}"
-        [ -n "${batch_max}" ]     && echo "    send_batch_max_size: ${batch_max}"
-    } >> "${GENERATED}"
-else
-    echo "  batch: {}" >> "${GENERATED}"
-fi
-
-# --- Exporters ----------------------------------------------------------------
-echo "exporters:" >> "${GENERATED}"
-
-# Exporters usable in traces/logs pipelines and exporters usable in metrics.
-declare -a signal_exporters=()
-declare -a metric_exporters=()
-
-emit_header() {
-    local key="$1"
-    if [ -n "${key}" ]; then
-        if [ "$(jq ".exporters[${key}].headers // [] | length" "${OPTIONS}")" -gt 0 ]; then
-            echo "    headers:"
-            local h
-            while IFS= read -r h; do
-                [ -z "${h}" ] && continue
-                echo "      ${h%%=*}: \"${h#*=}\""
-            done < <(jq -r ".exporters[${key}].headers[]?" "${OPTIONS}")
-        fi
-    fi
-}
-
-exporter_count="$(jq '.exporters // [] | length' "${OPTIONS}")"
-if [ "${exporter_count}" -eq 0 ]; then
-    echo "  debug:" >> "${GENERATED}"
-    echo "    verbosity: basic" >> "${GENERATED}"
-    signal_exporters+=("debug")
-    metric_exporters+=("debug")
-else
-    for i in $(seq 0 $((exporter_count - 1))); do
-        etype="$(jq -r ".exporters[${i}].type" "${OPTIONS}")"
-        endpoint="$(jq -r ".exporters[${i}].endpoint // \"\"" "${OPTIONS}")"
-        name="${etype}/${i}"
-        case "${etype}" in
-            otlp|otlphttp)
-                if [ -z "${endpoint}" ]; then
-                    bashio::log.warning "Exporter ${name} has no endpoint; skipping."
-                    continue
-                fi
-                {
-                    echo "  ${name}:"
-                    echo "    endpoint: \"${endpoint}\""
-                    emit_header "${i}"
-                } >> "${GENERATED}"
-                signal_exporters+=("${name}")
-                metric_exporters+=("${name}")
-                ;;
-            prometheus)
-                [ -z "${endpoint}" ] && endpoint="0.0.0.0:8889"
-                {
-                    echo "  ${name}:"
-                    echo "    endpoint: \"${endpoint}\""
-                } >> "${GENERATED}"
-                metric_exporters+=("${name}")
-                ;;
-            file)
-                [ -z "${endpoint}" ] && endpoint="/share/otelcol/telemetry.json"
-                {
-                    echo "  ${name}:"
-                    echo "    path: \"${endpoint}\""
-                } >> "${GENERATED}"
-                signal_exporters+=("${name}")
-                metric_exporters+=("${name}")
-                ;;
-            clickhouse)
-                if [ -z "${endpoint}" ]; then
-                    bashio::log.warning "Exporter ${name} has no endpoint; skipping."
-                    continue
-                fi
-                ch_database="$(jq -r ".exporters[${i}].database // \"\"" "${OPTIONS}")"
-                ch_username="$(jq -r ".exporters[${i}].username // \"\"" "${OPTIONS}")"
-                ch_password="$(jq -r ".exporters[${i}].password // \"\"" "${OPTIONS}")"
-                ch_ttl="$(jq -r ".exporters[${i}].ttl // \"\"" "${OPTIONS}")"
-                ch_timeout="$(jq -r ".exporters[${i}].timeout // \"\"" "${OPTIONS}")"
-                {
-                    echo "  ${name}:"
-                    echo "    endpoint: \"${endpoint}\""
-                    [ -n "${ch_database}" ] && echo "    database: \"${ch_database}\""
-                    [ -n "${ch_username}" ] && echo "    username: \"${ch_username}\""
-                    [ -n "${ch_password}" ] && echo "    password: \"${ch_password}\""
-                    [ -n "${ch_ttl}" ]      && echo "    ttl: ${ch_ttl}"
-                    [ -n "${ch_timeout}" ]  && echo "    timeout: ${ch_timeout}"
-                } >> "${GENERATED}"
-                signal_exporters+=("${name}")
-                metric_exporters+=("${name}")
-                ;;
-            debug)
-                {
-                    echo "  ${name}:"
-                    echo "    verbosity: basic"
-                } >> "${GENERATED}"
-                signal_exporters+=("${name}")
-                metric_exporters+=("${name}")
-                ;;
-            *)
-                bashio::log.warning "Unknown exporter type '${etype}'; skipping."
-                ;;
-        esac
-    done
-fi
-
-# Guarantee the collector boots even if every configured exporter was invalid.
-if [ "${#signal_exporters[@]}" -eq 0 ] && [ "${#metric_exporters[@]}" -eq 0 ]; then
-    bashio::log.warning "No valid exporters configured; falling back to debug."
-    echo "  debug:" >> "${GENERATED}"
-    echo "    verbosity: basic" >> "${GENERATED}"
-    signal_exporters+=("debug")
-    metric_exporters+=("debug")
-fi
-
-# The MQTT receiver must end up in a pipeline, or the collector refuses to start.
-# If the selected signal has no exporters (e.g. only a prometheus exporter while
-# signal=logs), add a debug exporter so its pipeline exists.
-if [ "${mqtt_enabled}" = "true" ] && [ "${mqtt_signal}" = "logs" ] && [ "${#signal_exporters[@]}" -eq 0 ]; then
-    bashio::log.warning "MQTT signal is 'logs' but no logs-capable exporter is configured; adding debug."
-    echo "  debug:" >> "${GENERATED}"
-    echo "    verbosity: basic" >> "${GENERATED}"
-    signal_exporters+=("debug")
-    metric_exporters+=("debug")
-fi
-
-# --- Extensions ---------------------------------------------------------------
-{
-    echo "extensions:"
-    echo "  pprof:"
-    echo "    endpoint: 127.0.0.1:1777"
-    echo "  zpages:"
-    echo "    endpoint: 127.0.0.1:55679"
-} >> "${GENERATED}"
-
-# --- Service / pipelines ------------------------------------------------------
-{
-    echo "service:"
-    echo "  extensions: [health_check, pprof, zpages]"
-    echo "  pipelines:"
-} >> "${GENERATED}"
-
-if [ "${#signal_exporters[@]}" -gt 0 ]; then
-    {
-        echo "    traces:"
-        echo "      receivers: [otlp]"
-        echo "      processors: [memory_limiter, batch]"
-        echo "      exporters: [$(join_csv "${signal_exporters[@]}")]"
-    } >> "${GENERATED}"
-
-    logs_receivers="otlp"
-    if [ "${mqtt_enabled}" = "true" ] && [ "${mqtt_signal}" = "logs" ]; then
-        logs_receivers="otlp, mqtt"
-    fi
-    {
-        echo "    logs:"
-        echo "      receivers: [${logs_receivers}]"
-        echo "      processors: [memory_limiter, batch]"
-        echo "      exporters: [$(join_csv "${signal_exporters[@]}")]"
-    } >> "${GENERATED}"
-fi
-
-if [ "${#metric_exporters[@]}" -gt 0 ]; then
-    metrics_receivers="otlp"
-    if [ "${mqtt_enabled}" = "true" ] && [ "${mqtt_signal}" = "metrics" ]; then
-        metrics_receivers="otlp, mqtt"
-    fi
-    {
-        echo "    metrics:"
-        echo "      receivers: [${metrics_receivers}]"
-        echo "      processors: [memory_limiter, batch]"
-        echo "      exporters: [$(join_csv "${metric_exporters[@]}")]"
-    } >> "${GENERATED}"
-fi
-
-# --- Raw override -------------------------------------------------------------
 declare -a config_args=(
     --config=/etc/otelcol/selfmonitoring.yaml
     --config="${GENERATED}"

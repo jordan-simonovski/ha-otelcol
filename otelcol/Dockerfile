@@ -41,6 +41,35 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     test -x /src/_build/otelcol-ha
 
 # ==============================================================================
+# Stage 1b: build the config-generation helper binary
+# ==============================================================================
+FROM golang:1.26-bookworm AS configgen
+
+ARG BUILD_ARCH=amd64
+ENV CGO_ENABLED=0 \
+    GOOS=linux
+
+WORKDIR /src/configgen
+COPY configgen/go.mod configgen/go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download
+
+COPY configgen/ ./
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    set -eux; \
+    case "${BUILD_ARCH}" in \
+      amd64)   export GOARCH=amd64 ;; \
+      aarch64) export GOARCH=arm64 ;; \
+      armv7)   export GOARCH=arm GOARM=7 ;; \
+      armhf)   export GOARCH=arm GOARM=6 ;; \
+      i386)    export GOARCH=386 ;; \
+      *) echo "unsupported BUILD_ARCH=${BUILD_ARCH}" >&2; exit 1 ;; \
+    esac; \
+    go build -trimpath -o /out/otelcol-config .; \
+    test -x /out/otelcol-config
+
+# ==============================================================================
 # Stage 2: runtime image on the Home Assistant Debian base
 # ==============================================================================
 # hadolint ignore=DL3006
@@ -62,6 +91,7 @@ RUN apt-get update \
 
 COPY rootfs /
 COPY --from=build /src/_build/otelcol-ha /usr/bin/otelcol
+COPY --from=configgen /out/otelcol-config /usr/bin/otelcol-config
 
 LABEL \
     io.hass.name="${BUILD_NAME}" \

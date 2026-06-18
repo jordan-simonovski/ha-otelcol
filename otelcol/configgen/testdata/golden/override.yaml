@@ -1,0 +1,36 @@
+receivers:
+    otlp:
+        protocols:
+            grpc:
+                endpoint: 0.0.0.0:4317
+            http:
+                endpoint: 0.0.0.0:4318
+processors:
+    batch: {}
+    memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+exporters:
+    debug/0:
+        verbosity: basic
+extensions:
+    pprof:
+        endpoint: 127.0.0.1:1777
+    zpages:
+        endpoint: 127.0.0.1:55679
+service:
+    extensions: [health_check, pprof, zpages]
+    pipelines:
+        logs:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [debug/0]
+        metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [debug/0]
+        traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [debug/0]

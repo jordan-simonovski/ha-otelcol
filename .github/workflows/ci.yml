@@ -55,16 +55,17 @@ jobs:
         with:
           path: ./otelcol
 
-  apparmor:
-    name: AppArmor profile
-    if: github.head_ref != 'changeset-release/main'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Install AppArmor utilities
-        run: sudo apt-get update && sudo apt-get install -y apparmor-utils
-      - name: Validate profile syntax
-        run: sudo apparmor_parser -Q otelcol/apparmor.txt
+  # Re-adding when I re-add apparmor
+  # apparmor:
+  #   name: AppArmor profile
+  #   if: github.head_ref != 'changeset-release/main'
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - name: Install AppArmor utilities
+  #       run: sudo apt-get update && sudo apt-get install -y apparmor-utils
+  #     - name: Validate profile syntax
+  #       run: sudo apparmor_parser -Q otelcol/apparmor.txt
 
   e2e:
     name: E2E (mqtt + otlp)
