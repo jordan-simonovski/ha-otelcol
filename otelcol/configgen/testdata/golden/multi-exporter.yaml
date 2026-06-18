@@ -1,0 +1,48 @@
+receivers:
+    mqtt:
+        broker: core-mosquitto
+        port: 1883
+        qos: 0
+        client_id: otelcol-ha
+        tls: false
+        topics:
+            - sensors/#
+    otlp:
+        protocols:
+            grpc:
+                endpoint: 0.0.0.0:4317
+            http:
+                endpoint: 0.0.0.0:4318
+processors:
+    batch: {}
+    memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+exporters:
+    file/2:
+        path: /share/telemetry.json
+    otlp/0:
+        endpoint: otelcol-gateway:4317
+    prometheus/1:
+        endpoint: 0.0.0.0:8889
+extensions:
+    pprof:
+        endpoint: 127.0.0.1:1777
+    zpages:
+        endpoint: 127.0.0.1:55679
+service:
+    extensions: [health_check, pprof, zpages]
+    pipelines:
+        logs:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [otlp/0, file/2]
+        metrics:
+            receivers: [otlp, mqtt]
+            processors: [memory_limiter, batch]
+            exporters: [otlp/0, prometheus/1, file/2]
+        traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [otlp/0, file/2]

@@ -1,0 +1,41 @@
+receivers:
+    otlp:
+        protocols:
+            grpc:
+                endpoint: 0.0.0.0:4317
+            http:
+                endpoint: 0.0.0.0:4318
+processors:
+    batch: {}
+    memory_limiter:
+        check_interval: 5s
+        limit_percentage: 80
+        spike_limit_percentage: 25
+exporters:
+    clickhouse/0:
+        endpoint: tcp://clickhouse:9000
+        database: otel
+        username: default
+        password: secret
+        ttl: 72h
+        timeout: 10s
+extensions:
+    pprof:
+        endpoint: 127.0.0.1:1777
+    zpages:
+        endpoint: 127.0.0.1:55679
+service:
+    extensions: [health_check, pprof, zpages]
+    pipelines:
+        logs:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [clickhouse/0]
+        metrics:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [clickhouse/0]
+        traces:
+            receivers: [otlp]
+            processors: [memory_limiter, batch]
+            exporters: [clickhouse/0]
