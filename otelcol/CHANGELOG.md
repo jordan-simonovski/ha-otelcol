@@ -1,5 +1,13 @@
 # otelcol-addon
 
+## 0.4.0
+
+### Minor Changes
+
+- ea1ef4a: Generate the collector config with a shipped `otelcol-config` Go binary instead
+  of the bash run script. Config generation is now unit-tested against golden
+  files with no Docker, and the run script no longer hand-rolls YAML quoting.
+
 ## 0.3.2
 
 ### Patch Changes
