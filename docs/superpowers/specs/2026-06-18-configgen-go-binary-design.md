@@ -131,12 +131,18 @@ in the runtime stage. CGO stays disabled; static binary, no new runtime deps.
 ## Testing
 
 **Unit (new, primary):** `otelcol/configgen` table-driven Go test runs every
-`otelcol/tests/config/fixtures/valid/*.json` and `invalid/*.json` through the generator.
-- valid fixtures: assert generated YAML equals a checked-in golden `.yaml`.
-- a `-update` flag regenerates goldens so diffs are reviewable in PRs.
-- malformed-input fixtures (e.g. `malformed-yaml.json`): assert the generator exits non-zero.
-  (`bad-pipeline-ref.json` exercises `extra_config`, which the binary does not touch — that case
-  stays an integration concern, see below.)
+`otelcol/tests/config/fixtures/valid/*.json` through the generator and asserts the generated
+YAML equals a checked-in golden `.yaml`. A `-update` flag regenerates goldens so diffs are
+reviewable in PRs.
+
+The `invalid/*.json` fixtures are **not** generator-error cases: both are valid JSON whose
+breakage lives inside the `extra_config` string (malformed YAML, dangling pipeline ref), which
+the generator never reads. The generator produces valid YAML for them; only `otelcol validate`
+on the merged layers catches the fault. They therefore stay integration-only (see below).
+
+The generator's own error path (unreadable file, malformed *JSON*) is covered by a separate
+inline test case feeding it bytes like `{` and asserting a non-zero exit / returned error — not
+tied to any fixture file.
 
 **Integration (kept):** `otelcol/tests/config/run.sh` still builds the image and runs
 `otelcol validate` on the layered config. It remains the authority on "do the components and
